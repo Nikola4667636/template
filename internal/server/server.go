@@ -4,18 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"template/api"
 	"template/internal/handler"
 	"template/internal/validate"
+)
+
+const (
+	readTimeout       = 5 * time.Second
+	readHeaderTimeout = 2 * time.Second
+	writeTimeout      = 10 * time.Second
+	idleTimeout       = 120 * time.Second
 )
 
 type Server struct {
@@ -23,62 +28,64 @@ type Server struct {
 	cfg        *validate.Config
 }
 
-func NewServer(cfg *validate.Config, healthHandler *handler.APIHandler) *Server {
+func NewServer(cfg *validate.Config, apiHandler *handler.APIHandler) *Server {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 
-	r.Get("/health", healthHandler.Health)
-	r.Get("/ready", healthHandler.Ready)
-
-	httpServer := &http.Server{
-		Addr:              cfg.HTTP_ADDR,
-		Handler:           r,
-		ReadTimeout:       5 * time.Second,
-		ReadHeaderTimeout: 2 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       120 * time.Second,
-	}
+	api.HandlerWithOptions(apiHandler, api.ChiServerOptions{
+		BaseRouter:       r,
+		ErrorHandlerFunc: handler.InvalidRequest,
+	})
 
 	return &Server{
-		httpServer: httpServer,
-		cfg:        cfg,
+		httpServer: &http.Server{
+			Addr:              cfg.HTTP_ADDR,
+			Handler:           r,
+			ReadTimeout:       readTimeout,
+			ReadHeaderTimeout: readHeaderTimeout,
+			WriteTimeout:      writeTimeout,
+			IdleTimeout:       idleTimeout,
+		},
+		cfg: cfg,
 	}
 }
 
-func (s *Server) Run() error {
-	shutdownError := make(chan error, 1)
+func (s *Server) Run(ctx context.Context) error {
+	errCh := make(chan error, 1)
 
 	go func() {
-		quit := make(chan os.Signal, 1)
-		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-		sig := <-quit
+		slog.Info("starting http server", "addr", s.httpServer.Addr)
 
-		log.Printf("received signal: %s. starting graceful shutdown...", sig.String())
-
-		ctx, cancel := context.WithTimeout(context.Background(), s.cfg.SHUTDOWN_TIMEOUT)
-		defer cancel()
-
-		if err := s.httpServer.Shutdown(ctx); err != nil {
-			shutdownError <- fmt.Errorf("failed to shutdown http server gracefully: %w", err)
+		err := s.httpServer.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- fmt.Errorf("http server listen error: %w", err)
 			return
 		}
-
-		shutdownError <- nil
+		errCh <- nil
 	}()
 
-	log.Printf("starting http server on %s", s.cfg.HTTP_ADDR)
-
-	err := s.httpServer.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("http server listen error: %w", err)
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
 	}
 
-	if err := <-shutdownError; err != nil {
+	slog.Info("shutdown signal received, stopping http server", "timeout", s.cfg.SHUTDOWN_TIMEOUT.String())
+
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cfg.SHUTDOWN_TIMEOUT)
+	defer cancel()
+
+	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
+		_ = s.httpServer.Close()
+		return fmt.Errorf("failed to shutdown http server gracefully: %w", err)
+	}
+
+	if err := <-errCh; err != nil {
 		return err
 	}
 
-	log.Println("server stopped gracefully")
+	slog.Info("http server stopped gracefully")
 	return nil
 }
