@@ -15,7 +15,7 @@ run:
 	go run $(TARGET_FILE)
 
 migrate:
-	echo "Имитация накатывания миграций" 
+	go tool goose -dir ./migrations postgres "$(DATABASE_URL)" up
 
 generate:
 	go tool oapi-codegen \
