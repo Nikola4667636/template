@@ -18,7 +18,11 @@ migrate:
 	echo "Имитация накатывания миграций" 
 
 generate:
-	echo "Имитация генерирования API"
+	go tool oapi-codegen \
+		-generate types,chi-server \
+		-package api \
+		-o internal/generated/api.gen.go \
+		contracts/openapi/trip-service.openapi.yaml
 
 lint:
 	echo "Появится реализация в будущем"
