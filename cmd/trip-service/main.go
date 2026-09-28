@@ -1,14 +1,24 @@
 package main
 
 import (
-	"fmt"
+	"log"
+
+	"template/internal/handler"
+	"template/internal/server"
 	"template/internal/validate"
 )
 
 func main() {
-	Config, err := validate.LoadConfig()
+	cfg, err := validate.LoadConfig()
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to load config: %v", err)
 	}
-	fmt.Println(Config.LOG_LEVEL)
+
+	healthHandler := handler.NewHealthHandler(nil)
+
+	srv := server.NewServer(cfg, healthHandler)
+
+	if err := srv.Run(); err != nil {
+		log.Fatalf("server exited with error: %v", err)
+	}
 }
