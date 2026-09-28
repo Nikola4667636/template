@@ -1,4 +1,4 @@
-module github.com/Nikola4667636/template
+module template
 
 go 1.27.0
 
