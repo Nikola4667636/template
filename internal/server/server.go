@@ -23,11 +23,10 @@ type Server struct {
 	cfg        *validate.Config
 }
 
-func NewServer(cfg *validate.Config, healthHandler *handler.HealthHandler) *Server {
+func NewServer(cfg *validate.Config, healthHandler *handler.APIHandler) *Server {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/health", healthHandler.Health)

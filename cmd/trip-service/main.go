@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"log"
 
+	"template/internal/database"
 	"template/internal/handler"
 	"template/internal/server"
 	"template/internal/validate"
@@ -14,9 +16,16 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	healthHandler := handler.NewHealthHandler(nil)
+	ctx := context.Background()
 
-	srv := server.NewServer(cfg, healthHandler)
+	dbPool, err := database.NewPool(ctx, cfg)
+	if err != nil {
+		log.Fatalf("failed to connect to postgres: %v", err)
+	}
+	defer dbPool.Close()
+
+	apiHandler := handler.NewAPIHandler(dbPool)
+	srv := server.NewServer(cfg, apiHandler)
 
 	if err := srv.Run(); err != nil {
 		log.Fatalf("server exited with error: %v", err)
