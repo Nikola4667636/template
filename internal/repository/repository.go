@@ -17,7 +17,10 @@ import (
 	"template/internal/domain"
 )
 
-const pgUniqueViolation = "23505"
+const (
+	pgUniqueViolation       = "23505"
+	driverActiveUniqueIndex = "idx_trips_driver_active"
+)
 
 var psql = sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
@@ -63,7 +66,7 @@ func (r *TripRepository) Create(ctx context.Context, trip *domain.Trip) error {
 
 	if _, err := database.GetExecutor(ctx, r.pool).Exec(ctx, query, args...); err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == driverActiveUniqueIndex {
 			return domain.ErrDriverBusy
 		}
 		return fmt.Errorf("failed to insert trip: %w", err)

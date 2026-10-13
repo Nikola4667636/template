@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -18,11 +19,15 @@ type DBExecutor interface {
 }
 
 type TxManager struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	queryTimeout time.Duration
 }
 
-func NewTxManager(pool *pgxpool.Pool) *TxManager {
-	return &TxManager{pool: pool}
+func NewTxManager(pool *pgxpool.Pool, queryTimeout time.Duration) *TxManager {
+	return &TxManager{
+		pool:         pool,
+		queryTimeout: queryTimeout,
+	}
 }
 
 func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error) error {
@@ -30,28 +35,37 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 		return fn(ctx)
 	}
 
-	tx, err := tm.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	beginCtx, cancelBegin := context.WithTimeout(ctx, tm.queryTimeout)
+	tx, err := tm.pool.BeginTx(beginCtx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	cancelBegin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 
-	rollbackCtx := context.WithoutCancel(ctx)
+	rollbackBase := context.WithoutCancel(ctx)
 
 	defer func() {
 		if p := recover(); p != nil {
-			_ = tx.Rollback(rollbackCtx)
+			rbCtx, cancel := context.WithTimeout(rollbackBase, tm.queryTimeout)
+			_ = tx.Rollback(rbCtx)
+			cancel()
 			panic(p)
 		}
 	}()
 
 	if err := fn(context.WithValue(ctx, txKey{}, tx)); err != nil {
-		if rbErr := tx.Rollback(rollbackCtx); rbErr != nil {
+		rbCtx, cancel := context.WithTimeout(rollbackBase, tm.queryTimeout)
+		rbErr := tx.Rollback(rbCtx)
+		cancel()
+		if rbErr != nil {
 			return fmt.Errorf("%w (rollback failed: %v)", err, rbErr)
 		}
 		return err
 	}
 
-	if err := tx.Commit(ctx); err != nil {
+	commitCtx, cancelCommit := context.WithTimeout(ctx, tm.queryTimeout)
+	defer cancelCommit()
+	if err := tx.Commit(commitCtx); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 

@@ -1,4 +1,8 @@
+-include .env
+export
+
 TARGET_FILE=./cmd/trip-service
+
 
 .PHONY: test run migrate lint generate clean env-start env-stop
 

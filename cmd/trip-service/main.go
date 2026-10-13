@@ -40,7 +40,7 @@ func run() error {
 	}
 	defer dbPool.Close()
 
-	txManager := database.NewTxManager(dbPool)
+	txManager := database.NewTxManager(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
 	tripRepo := repository.NewTripRepository(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
 	tripService := service.NewTripService(tripRepo, txManager)
 

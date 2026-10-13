@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -14,13 +13,6 @@ import (
 	"template/api"
 	"template/internal/handler"
 	"template/internal/validate"
-)
-
-const (
-	readTimeout       = 5 * time.Second
-	readHeaderTimeout = 2 * time.Second
-	writeTimeout      = 10 * time.Second
-	idleTimeout       = 120 * time.Second
 )
 
 type Server struct {
@@ -43,10 +35,10 @@ func NewServer(cfg *validate.Config, apiHandler *handler.APIHandler) *Server {
 		httpServer: &http.Server{
 			Addr:              cfg.HTTP_ADDR,
 			Handler:           r,
-			ReadTimeout:       readTimeout,
-			ReadHeaderTimeout: readHeaderTimeout,
-			WriteTimeout:      writeTimeout,
-			IdleTimeout:       idleTimeout,
+			ReadTimeout:       cfg.HTTP_READ_TIMEOUT,
+			ReadHeaderTimeout: cfg.HTTP_READ_HEADER_TIMEOUT,
+			WriteTimeout:      cfg.HTTP_WRITE_TIMEOUT,
+			IdleTimeout:       cfg.HTTP_IDLE_TIMEOUT,
 		},
 		cfg: cfg,
 	}

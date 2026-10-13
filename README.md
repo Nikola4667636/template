@@ -32,7 +32,11 @@ DATABASE_CONNECT_TIMEOUT | Таймаут подключения к БД
 DATABASE_QUERY_TIMEOUT | Таймаут выполнения SQL-запроса 
 DATABASE_MAX_CONN_LIFETIME | Максимальное время жизни соединения 
 LOG_LEVEL | Уровень логирования (debug, info, warn, error) 
-SHUTDOWN_TIMEOUT | Бюджет времени на graceful shutdown (напр., 5s) 
+SHUTDOWN_TIMEOUT | Бюджет времени на graceful shutdown (напр., 5s)
+HTTP_READ_TIMEOUT | Таймаут на полное чтение запроса
+HTTP_READ_HEADER_TIMEOUT | Таймаут на чтение только заголовков запроса
+HTTP_WRITE_TIMEOUT=10s | Таймаут на запись ответа клиенту
+HTTP_IDLE_TIMEOUT=120s | Таймаут, в течение которого keep-alive соединение может простаивать без активных запросов
 
 ## Принятые решения и архитектура
 

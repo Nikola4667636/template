@@ -12,7 +12,12 @@ import (
 )
 
 type Config struct {
-	HTTP_ADDR                  string        `env:"HTTP_ADDR"`
+	HTTP_ADDR                string        `env:"HTTP_ADDR"`
+	HTTP_READ_TIMEOUT        time.Duration `env:"HTTP_READ_TIMEOUT"`
+	HTTP_READ_HEADER_TIMEOUT time.Duration `env:"HTTP_READ_HEADER_TIMEOUT"`
+	HTTP_WRITE_TIMEOUT       time.Duration `env:"HTTP_WRITE_TIMEOUT"`
+	HTTP_IDLE_TIMEOUT        time.Duration `env:"HTTP_IDLE_TIMEOUT"`
+
 	LOG_LEVEL                  string        `env:"LOG_LEVEL"`
 	SHUTDOWN_TIMEOUT           time.Duration `env:"SHUTDOWN_TIMEOUT"`
 	DATABASE_URL               string        `env:"DATABASE_URL"`

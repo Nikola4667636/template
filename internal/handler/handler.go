@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -16,6 +17,33 @@ import (
 )
 
 const maxBodyBytes = 1 << 20
+
+func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("body must contain a single JSON object")
+	}
+	return nil
+}
+
+type tripDataRaw struct {
+	UserId     *uuid.UUID       `json:"user_id"`
+	DriverId   *uuid.UUID       `json:"driver_id"`
+	StartPoint *api.Coordinates `json:"start_point"`
+	EndPoint   *api.Coordinates `json:"end_point"`
+	Price      *int64           `json:"price"`
+}
+
+type positionDataRaw struct {
+	Coordinates *api.Coordinates `json:"coordinates"`
+	RecordedAt  *time.Time       `json:"recorded_at"`
+}
 
 type Pinger interface {
 	Ping(ctx context.Context) error
@@ -60,19 +88,32 @@ func (h *APIHandler) Ready(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) CreateTrip(w http.ResponseWriter, r *http.Request, _ api.CreateTripParams) {
-	var body api.TripData
+	var raw tripDataRaw
 
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
+	if err := decodeJSON(w, r, &raw); err != nil {
 		slog.DebugContext(r.Context(), "invalid create trip body", "error", err)
-		writeProblem(w, problemInvalidRequest)
+		writeProblem(w, r, problemInvalidRequest, "invalid JSON body")
 		return
+	}
+
+	if raw.UserId == nil || raw.DriverId == nil ||
+		raw.StartPoint == nil || raw.EndPoint == nil || raw.Price == nil {
+		slog.DebugContext(r.Context(), "create trip: required fields missing")
+		writeProblem(w, r, problemInvalidRequest, "required fields are missing")
+		return
+	}
+
+	body := api.TripData{
+		UserId:     *raw.UserId,
+		DriverId:   *raw.DriverId,
+		StartPoint: *raw.StartPoint,
+		EndPoint:   *raw.EndPoint,
+		Price:      *raw.Price,
 	}
 
 	if err := validateTripData(body); err != nil {
 		slog.DebugContext(r.Context(), "create trip validation failed", "error", err)
-		writeProblem(w, problemInvalidRequest)
+		writeProblem(w, r, problemInvalidRequest, err.Error())
 		return
 	}
 
@@ -119,27 +160,31 @@ func (h *APIHandler) FinishTrip(w http.ResponseWriter, r *http.Request, tripId a
 }
 
 func (h *APIHandler) CreateTripPosition(w http.ResponseWriter, r *http.Request, tripId api.TripId) {
-	var body api.PositionData
+	var raw positionDataRaw
 
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&body); err != nil {
+	if err := decodeJSON(w, r, &raw); err != nil {
 		slog.DebugContext(r.Context(), "invalid create position body", "error", err)
-		writeProblem(w, problemInvalidRequest)
+		writeProblem(w, r, problemInvalidRequest, "invalid JSON body")
 		return
 	}
 
-	if !validCoordinates(body.Coordinates.Latitude, body.Coordinates.Longitude) {
+	if raw.Coordinates == nil || raw.RecordedAt == nil {
+		slog.DebugContext(r.Context(), "create position: required fields missing")
+		writeProblem(w, r, problemInvalidRequest, "required fields are missing")
+		return
+	}
+
+	if !validCoordinates(raw.Coordinates.Latitude, raw.Coordinates.Longitude) {
 		slog.DebugContext(r.Context(), "invalid coordinates for position")
-		writeProblem(w, problemInvalidRequest)
+		writeProblem(w, r, problemInvalidRequest, "coordinates are out of range")
 		return
 	}
 
 	pos, err := h.tripService.AddTripPosition(r.Context(), domain.AddPositionParams{
 		TripID: tripId,
 		Point: domain.Coordinates{
-			Latitude:  body.Coordinates.Latitude,
-			Longitude: body.Coordinates.Longitude,
+			Latitude:  raw.Coordinates.Latitude,
+			Longitude: raw.Coordinates.Longitude,
 		},
 	})
 	if err != nil {
@@ -180,6 +225,7 @@ func (h *APIHandler) ListTripPositions(w http.ResponseWriter, r *http.Request, t
 		Positions: apiPositions,
 	})
 }
+
 func validateTripData(b api.TripData) error {
 	if b.UserId == uuid.Nil {
 		return fmt.Errorf("%w: user_id must be a non-empty UUID", domain.ErrInvalidArguments)
@@ -241,35 +287,41 @@ var (
 	problemInternal       = problem{http.StatusInternalServerError, "internal_error", "Internal error", problemTypeBase + "internal-error"}
 )
 
-func InvalidRequest(w http.ResponseWriter, _ *http.Request, _ error) {
-	writeProblem(w, problemInvalidRequest)
+func InvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
+	writeProblem(w, r, problemInvalidRequest, err.Error())
 }
 
 func writeError(w http.ResponseWriter, r *http.Request, op string, err error) {
 	switch {
 	case errors.Is(err, domain.ErrInvalidArguments):
-		writeProblem(w, problemInvalidRequest)
+		writeProblem(w, r, problemInvalidRequest, err.Error())
 	case errors.Is(err, domain.ErrTripNotFound):
-		writeProblem(w, problemTripNotFound)
+		writeProblem(w, r, problemTripNotFound, "trip not found")
 	case errors.Is(err, domain.ErrTripCompleted):
-		writeProblem(w, problemTripCompleted)
+		writeProblem(w, r, problemTripCompleted, "trip is already completed")
 	case errors.Is(err, domain.ErrDriverBusy):
-		writeProblem(w, problemDriverBusy)
+		writeProblem(w, r, problemDriverBusy, "driver already has an active trip")
 	default:
 		slog.ErrorContext(r.Context(), "request failed", "op", op, "error", err)
-		writeProblem(w, problemInternal)
+		writeProblem(w, r, problemInternal, "internal error")
 	}
 }
 
-func writeProblem(w http.ResponseWriter, p problem) {
+func writeProblem(w http.ResponseWriter, r *http.Request, p problem, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(p.status)
-	_ = json.NewEncoder(w).Encode(api.Problem{
-		Status: int32(p.status),
-		Code:   p.code,
-		Title:  p.title,
-		Type:   p.typ,
-	})
+
+	prob := api.Problem{
+		Status:   int32(p.status),
+		Code:     p.code,
+		Title:    p.title,
+		Type:     p.typ,
+		Instance: &r.URL.Path,
+	}
+	if detail != "" {
+		prob.Detail = &detail
+	}
+	_ = json.NewEncoder(w).Encode(prob)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
