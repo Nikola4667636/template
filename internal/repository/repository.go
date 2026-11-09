@@ -14,7 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Nikola4667636/template/internal/database"
-	"github.com/Nikola4667636/template/internal/domain"
+	domain "github.com/Nikola4667636/template/internal/domain/trip"
 )
 
 const (

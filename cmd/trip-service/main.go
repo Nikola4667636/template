@@ -8,11 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Nikola4667636/template/internal/database"
-	"github.com/Nikola4667636/template/internal/handler"
-	"github.com/Nikola4667636/template/internal/repository"
-	"github.com/Nikola4667636/template/internal/server"
-	"github.com/Nikola4667636/template/internal/service"
+	"github.com/Nikola4667636/template/internal/container"
 	"github.com/Nikola4667636/template/internal/validate"
 )
 
@@ -34,21 +30,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	dbPool, err := database.NewPool(ctx, cfg)
+	app, err := container.NewContainer(ctx, *cfg)
 	if err != nil {
-		return fmt.Errorf("failed to connect to postgres: %w", err)
+		return fmt.Errorf("build application: %w", err)
 	}
-	defer dbPool.Close()
+	defer app.Close()
 
-	txManager := database.NewTxManager(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
-	tripRepo := repository.NewTripRepository(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
-	tripService := service.NewTripService(tripRepo, txManager)
-
-	apiHandler := handler.NewAPIHandler(dbPool, tripService, cfg.DATABASE_QUERY_TIMEOUT)
-	srv := server.NewServer(cfg, apiHandler)
-
-	if err := srv.Run(ctx); err != nil {
-		return fmt.Errorf("server exited with error: %w", err)
+	if err := app.Run(ctx); err != nil {
+		return fmt.Errorf("run application: %w", err)
 	}
 
 	slog.Info("service stopped")

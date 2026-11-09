@@ -6,7 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Nikola4667636/template/internal/domain"
+	domain "github.com/Nikola4667636/template/internal/domain/trip"
 )
 
 type TxManager interface {

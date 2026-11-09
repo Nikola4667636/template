@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Nikola4667636/template/api"
-	"github.com/Nikola4667636/template/internal/domain"
+	domain "github.com/Nikola4667636/template/internal/domain/trip"
 )
 
 const maxBodyBytes = 1 << 20
