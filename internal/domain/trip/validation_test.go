@@ -9,15 +9,13 @@ import (
 )
 
 const (
-	testUUIDReason             = "must be a non-empty UUID"
-	testPriceReason            = "must not be negative"
-	testLatitudeReason         = "must be between -90 and 90"
-	testLongitudeReason        = "must be between -180 and 180"
-	testPriceField             = "price"
-	testStartLatitudeField     = "start_point.latitude"
-	testEndLongitudeField      = "end_point.longitude"
-	testPositionLatitudeField  = "coordinates.latitude"
-	testPositionLongitudeField = "coordinates.longitude"
+	testUUIDReason         = "must be a non-empty UUID"
+	testPriceReason        = "must not be negative"
+	testLatitudeReason     = "must be between -90 and 90"
+	testLongitudeReason    = "must be between -180 and 180"
+	testPriceField         = "price"
+	testStartLatitudeField = "start_point.latitude"
+	testEndLongitudeField  = "end_point.longitude"
 )
 
 func TestCreateTripParamsValidate(t *testing.T) {
@@ -141,113 +139,6 @@ func TestCreateTripParamsValidate(t *testing.T) {
 				StartPoint: Coordinates{Latitude: 59.9398, Longitude: 30.3146},
 				EndPoint:   Coordinates{Latitude: 59.929, Longitude: 30.3626},
 				Price:      1450,
-			}
-			if tt.modify != nil {
-				tt.modify(&params)
-			}
-
-			assertValidationResult(t, params.Validate(), tt.wantField, tt.wantReason)
-		})
-	}
-}
-
-func TestAddPositionParamsValidate(t *testing.T) {
-	tests := []struct {
-		name       string
-		modify     func(*AddPositionParams)
-		wantField  string
-		wantReason string
-	}{
-		{name: "valid parameters"},
-		{
-			name:       "empty trip ID",
-			modify:     func(p *AddPositionParams) { p.TripID = uuid.Nil },
-			wantField:  "trip_id",
-			wantReason: testUUIDReason,
-		},
-		{
-			name:   "zero coordinates are valid",
-			modify: func(p *AddPositionParams) { p.Point = Coordinates{} },
-		},
-		{
-			name: "minimum coordinates are valid",
-			modify: func(p *AddPositionParams) {
-				p.Point = Coordinates{Latitude: -90, Longitude: -180}
-			},
-		},
-		{
-			name: "maximum coordinates are valid",
-			modify: func(p *AddPositionParams) {
-				p.Point = Coordinates{Latitude: 90, Longitude: 180}
-			},
-		},
-		{
-			name:       "latitude below minimum",
-			modify:     func(p *AddPositionParams) { p.Point.Latitude = -90.1 },
-			wantField:  testPositionLatitudeField,
-			wantReason: testLatitudeReason,
-		},
-		{
-			name:       "latitude above maximum",
-			modify:     func(p *AddPositionParams) { p.Point.Latitude = 90.1 },
-			wantField:  testPositionLatitudeField,
-			wantReason: testLatitudeReason,
-		},
-		{
-			name:       "longitude below minimum",
-			modify:     func(p *AddPositionParams) { p.Point.Longitude = -180.1 },
-			wantField:  testPositionLongitudeField,
-			wantReason: testLongitudeReason,
-		},
-		{
-			name:       "longitude above maximum",
-			modify:     func(p *AddPositionParams) { p.Point.Longitude = 180.1 },
-			wantField:  testPositionLongitudeField,
-			wantReason: testLongitudeReason,
-		},
-		{
-			name:       "NaN latitude",
-			modify:     func(p *AddPositionParams) { p.Point.Latitude = math.NaN() },
-			wantField:  testPositionLatitudeField,
-			wantReason: testLatitudeReason,
-		},
-		{
-			name:       "NaN longitude",
-			modify:     func(p *AddPositionParams) { p.Point.Longitude = math.NaN() },
-			wantField:  testPositionLongitudeField,
-			wantReason: testLongitudeReason,
-		},
-		{
-			name:       "positive infinite latitude",
-			modify:     func(p *AddPositionParams) { p.Point.Latitude = math.Inf(1) },
-			wantField:  testPositionLatitudeField,
-			wantReason: testLatitudeReason,
-		},
-		{
-			name:       "negative infinite latitude",
-			modify:     func(p *AddPositionParams) { p.Point.Latitude = math.Inf(-1) },
-			wantField:  testPositionLatitudeField,
-			wantReason: testLatitudeReason,
-		},
-		{
-			name:       "positive infinite longitude",
-			modify:     func(p *AddPositionParams) { p.Point.Longitude = math.Inf(1) },
-			wantField:  testPositionLongitudeField,
-			wantReason: testLongitudeReason,
-		},
-		{
-			name:       "negative infinite longitude",
-			modify:     func(p *AddPositionParams) { p.Point.Longitude = math.Inf(-1) },
-			wantField:  testPositionLongitudeField,
-			wantReason: testLongitudeReason,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			params := AddPositionParams{
-				TripID: uuid.UUID{3},
-				Point:  Coordinates{Latitude: 59.9398, Longitude: 30.3146},
 			}
 			if tt.modify != nil {
 				tt.modify(&params)

@@ -6,10 +6,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/Nikola4667636/template/internal/validate"
+	"github.com/Nikola4667636/template/internal/config"
 )
 
-func NewPool(ctx context.Context, cfg *validate.Config) (*pgxpool.Pool, error) {
+func NewPool(ctx context.Context, cfg *config.Config) (*pgxpool.Pool, error) {
 	poolCfg, err := pgxpool.ParseConfig(cfg.DATABASE_URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse database url: %w", err)

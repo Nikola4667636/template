@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
@@ -100,13 +99,25 @@ func (r *TripRepository) AddStatusHistory(ctx context.Context, tripID uuid.UUID,
 }
 
 func (r *TripRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Trip, error) {
+	return r.fetchByID(ctx, id, false)
+}
+
+// GetByIDForUpdate must be called within a transaction to hold the row lock.
+func (r *TripRepository) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*domain.Trip, error) {
+	return r.fetchByID(ctx, id, true)
+}
+
+func (r *TripRepository) fetchByID(ctx context.Context, id uuid.UUID, forUpdate bool) (*domain.Trip, error) {
 	ctx, cancel := r.withTimeout(ctx)
 	defer cancel()
 
-	query, args, err := psql.Select(tripColumns...).
+	builder := psql.Select(tripColumns...).
 		From("trips").
-		Where("id = ?", id).
-		ToSql()
+		Where("id = ?", id)
+	if forUpdate {
+		builder = builder.Suffix("FOR UPDATE")
+	}
+	query, args, err := builder.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build select trip query: %w", err)
 	}
@@ -114,7 +125,7 @@ func (r *TripRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tri
 	trip, err := scanTrip(database.GetExecutor(ctx, r.pool).QueryRow(ctx, query, args...))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, domain.ErrTripNotFound
+			return nil, fmt.Errorf("get trip by id: %w", domain.ErrTripNotFound)
 		}
 		return nil, fmt.Errorf("failed to get trip: %w", err)
 	}
@@ -122,92 +133,28 @@ func (r *TripRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Tri
 	return trip, nil
 }
 
-func (r *TripRepository) Finish(ctx context.Context, id uuid.UUID) (*domain.Trip, error) {
+func (r *TripRepository) UpdateState(ctx context.Context, trip *domain.Trip) error {
 	ctx, cancel := r.withTimeout(ctx)
 	defer cancel()
 
 	query, args, err := psql.Update("trips").
-		Set("status", string(domain.TripStatusCompleted)).
-		Set("finished_at", sq.Expr("NOW()")).
+		Set("status", string(trip.Status)).
+		Set("finished_at", trip.FinishedAt).
 		Set("updated_at", sq.Expr("NOW()")).
-		Where("id = ? AND status = ?", id, string(domain.TripStatusActive)).
-		Suffix("RETURNING " + strings.Join(tripColumns, ", ")).
+		Where("id = ?", trip.ID).
 		ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build finish trip query: %w", err)
+		return fmt.Errorf("failed to build update trip state query: %w", err)
 	}
 
-	trip, err := scanTrip(database.GetExecutor(ctx, r.pool).QueryRow(ctx, query, args...))
-	if err == nil {
-		return trip, nil
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("failed to finish trip: %w", err)
-	}
-
-	existing, getErr := r.GetByID(ctx, id)
-	if getErr != nil {
-		return nil, getErr
-	}
-	if existing.Status == domain.TripStatusCompleted {
-		return nil, domain.ErrTripCompleted
-	}
-	return nil, fmt.Errorf("trip %s is active but was not updated", id)
-}
-
-func (r *TripRepository) AddPosition(ctx context.Context, pos *domain.TripPosition) error {
-	ctx, cancel := r.withTimeout(ctx)
-	defer cancel()
-
-	query, args, err := psql.Insert("trip_positions").
-		Columns("id", "trip_id", "latitude", "longitude", "created_at").
-		Values(pos.ID, pos.TripID, pos.Point.Latitude, pos.Point.Longitude, pos.CreatedAt).
-		ToSql()
+	tag, err := database.GetExecutor(ctx, r.pool).Exec(ctx, query, args...)
 	if err != nil {
-		return fmt.Errorf("failed to build insert position query: %w", err)
+		return fmt.Errorf("failed to update trip state: %w", err)
 	}
-
-	if _, err := database.GetExecutor(ctx, r.pool).Exec(ctx, query, args...); err != nil {
-		return fmt.Errorf("failed to insert trip position: %w", err)
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("update trip state: %w", domain.ErrTripNotFound)
 	}
-
 	return nil
-}
-
-func (r *TripRepository) ListPositions(ctx context.Context, tripID uuid.UUID) ([]domain.TripPosition, error) {
-	ctx, cancel := r.withTimeout(ctx)
-	defer cancel()
-
-	query, args, err := psql.Select("id", "trip_id", "latitude", "longitude", "created_at").
-		From("trip_positions").
-		Where("trip_id = ?", tripID).
-		OrderBy("created_at ASC").
-		ToSql()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build list positions query: %w", err)
-	}
-
-	rows, err := database.GetExecutor(ctx, r.pool).Query(ctx, query, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query trip positions: %w", err)
-	}
-	defer rows.Close()
-
-	var positions []domain.TripPosition
-	for rows.Next() {
-		var p domain.TripPosition
-		if err := rows.Scan(&p.ID, &p.TripID, &p.Point.Latitude, &p.Point.Longitude, &p.CreatedAt); err != nil {
-			return nil, fmt.Errorf("failed to scan position: %w", err)
-		}
-		p.CreatedAt = p.CreatedAt.UTC()
-		positions = append(positions, p)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows error: %w", err)
-	}
-
-	return positions, nil
 }
 
 func scanTrip(row pgx.Row) (*domain.Trip, error) {

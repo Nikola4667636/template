@@ -10,17 +10,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/Nikola4667636/template/api"
+	"github.com/Nikola4667636/template/internal/config"
+	api "github.com/Nikola4667636/template/internal/generated"
 	"github.com/Nikola4667636/template/internal/handler"
-	"github.com/Nikola4667636/template/internal/validate"
 )
 
 type Server struct {
 	httpServer *http.Server
-	cfg        *validate.Config
+	cfg        *config.Config
 }
 
-func NewServer(cfg *validate.Config, apiHandler *handler.APIHandler) *Server {
+func NewServer(cfg *config.Config, apiHandler *handler.APIHandler) *Server {
 	r := chi.NewRouter()
 
 	r.Use(middleware.RequestID)

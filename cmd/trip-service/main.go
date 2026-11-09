@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/Nikola4667636/template/internal/config"
 	"github.com/Nikola4667636/template/internal/container"
-	"github.com/Nikola4667636/template/internal/validate"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 }
 
 func run() error {
-	cfg, err := validate.LoadConfig()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

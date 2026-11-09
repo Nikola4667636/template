@@ -28,18 +28,6 @@ func (p CreateTripParams) Validate() error {
 	return validateCoordinates("end_point", p.EndPoint)
 }
 
-type AddPositionParams struct {
-	TripID uuid.UUID
-	Point  Coordinates
-}
-
-func (p AddPositionParams) Validate() error {
-	if p.TripID == uuid.Nil {
-		return &ValidationError{Field: "trip_id", Reason: nonEmptyUUIDReason}
-	}
-	return validateCoordinates("coordinates", p.Point)
-}
-
 func validateCoordinates(field string, point Coordinates) error {
 	// Inclusive comparisons also reject NaN, which does not belong to either range.
 	if !(point.Latitude >= -90 && point.Latitude <= 90) {
