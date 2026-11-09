@@ -6,7 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"template/internal/validate"
+	"github.com/Nikola4667636/template/internal/validate"
 )
 
 func NewPool(ctx context.Context, cfg *validate.Config) (*pgxpool.Pool, error) {
@@ -15,8 +15,8 @@ func NewPool(ctx context.Context, cfg *validate.Config) (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("failed to parse database url: %w", err)
 	}
 
-	poolCfg.MaxConns = int32(cfg.DATABASE_MAX_CONNS)
-	poolCfg.MinConns = int32(cfg.DATABASE_MIN_CONNS)
+	poolCfg.MaxConns = cfg.DATABASE_MAX_CONNS
+	poolCfg.MinConns = cfg.DATABASE_MIN_CONNS
 	poolCfg.MaxConnLifetime = cfg.DATABASE_MAX_CONN_LIFETIME
 
 	poolCfg.ConnConfig.ConnectTimeout = cfg.DATABASE_CONNECT_TIMEOUT

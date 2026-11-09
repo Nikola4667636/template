@@ -1,5 +1,4 @@
-module template
-
+module github.com/Nikola4667636/template
 go 1.27.0
 
 tool (

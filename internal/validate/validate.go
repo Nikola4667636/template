@@ -21,8 +21,8 @@ type Config struct {
 	LOG_LEVEL                  string        `env:"LOG_LEVEL"`
 	SHUTDOWN_TIMEOUT           time.Duration `env:"SHUTDOWN_TIMEOUT"`
 	DATABASE_URL               string        `env:"DATABASE_URL"`
-	DATABASE_MAX_CONNS         int           `env:"DATABASE_MAX_CONNS"`
-	DATABASE_MIN_CONNS         int           `env:"DATABASE_MIN_CONNS"`
+	DATABASE_MAX_CONNS         int32         `env:"DATABASE_MAX_CONNS"`
+	DATABASE_MIN_CONNS         int32         `env:"DATABASE_MIN_CONNS"`
 	DATABASE_MAX_CONN_LIFETIME time.Duration `env:"DATABASE_MAX_CONN_LIFETIME"`
 	DATABASE_CONNECT_TIMEOUT   time.Duration `env:"DATABASE_CONNECT_TIMEOUT"`
 	DATABASE_QUERY_TIMEOUT     time.Duration `env:"DATABASE_QUERY_TIMEOUT"`

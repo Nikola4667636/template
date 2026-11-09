@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"template/api"
-	"template/internal/handler"
-	"template/internal/validate"
+	"github.com/Nikola4667636/template/api"
+	"github.com/Nikola4667636/template/internal/handler"
+	"github.com/Nikola4667636/template/internal/validate"
 )
 
 type Server struct {

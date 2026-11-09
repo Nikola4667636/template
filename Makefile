@@ -27,6 +27,7 @@ generate:
 		-package api \
 		-o api/api.gen.go \
 		contracts/openapi/trip-service.openapi.yaml
+		go generate ./...
 
 lint:
-	echo "Появится реализация в будущем"
+	golangci-lint run ./...

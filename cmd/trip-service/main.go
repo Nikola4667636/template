@@ -8,12 +8,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"template/internal/database"
-	"template/internal/handler"
-	"template/internal/repository"
-	"template/internal/server"
-	"template/internal/service"
-	"template/internal/validate"
+	"github.com/Nikola4667636/template/internal/database"
+	"github.com/Nikola4667636/template/internal/handler"
+	"github.com/Nikola4667636/template/internal/repository"
+	"github.com/Nikola4667636/template/internal/server"
+	"github.com/Nikola4667636/template/internal/service"
+	"github.com/Nikola4667636/template/internal/validate"
 )
 
 func main() {

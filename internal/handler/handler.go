@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"template/api"
-	"template/internal/domain"
+	"github.com/Nikola4667636/template/api"
+	"github.com/Nikola4667636/template/internal/domain"
 )
 
 const maxBodyBytes = 1 << 20
@@ -71,7 +71,7 @@ func NewAPIHandler(db Pinger, tripService TripService, dbTimeout time.Duration) 
 	}
 }
 
-func (h *APIHandler) Health(w http.ResponseWriter, r *http.Request) {
+func (h *APIHandler) Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, api.HealthResponse{Status: api.Ok})
 }
 
@@ -273,7 +273,7 @@ func mapDomainTripToAPI(trip *domain.Trip) api.Trip {
 const problemTypeBase = "https://tripgo.example/problems/"
 
 type problem struct {
-	status int
+	status int32
 	code   string
 	title  string
 	typ    string
@@ -309,10 +309,10 @@ func writeError(w http.ResponseWriter, r *http.Request, op string, err error) {
 
 func writeProblem(w http.ResponseWriter, r *http.Request, p problem, detail string) {
 	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(p.status)
+	w.WriteHeader(int(p.status))
 
 	prob := api.Problem{
-		Status:   int32(p.status),
+		Status:   p.status,
 		Code:     p.code,
 		Title:    p.title,
 		Type:     p.typ,

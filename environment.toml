@@ -1,3 +1,4 @@
 schema_version = 1
-lab = 1
-components = ["postgres"]
+lab = 2
+components = ["postgres", "observability"]
+

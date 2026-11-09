@@ -13,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"template/internal/database"
-	"template/internal/domain"
+	"github.com/Nikola4667636/template/internal/database"
+	"github.com/Nikola4667636/template/internal/domain"
 )
 
 const (
