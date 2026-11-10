@@ -9,14 +9,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Nikola4667636/template/internal/config"
-	"github.com/Nikola4667636/template/internal/database"
 	transport "github.com/Nikola4667636/template/internal/http"
 	"github.com/Nikola4667636/template/internal/http/health"
 	"github.com/Nikola4667636/template/internal/http/ready"
 	createhandler "github.com/Nikola4667636/template/internal/http/trip/create"
 	finishhandler "github.com/Nikola4667636/template/internal/http/trip/finish"
 	gethandler "github.com/Nikola4667636/template/internal/http/trip/get"
-	"github.com/Nikola4667636/template/internal/repository"
+	"github.com/Nikola4667636/template/internal/infra/postgres"
+	"github.com/Nikola4667636/template/internal/infra/postgres/transaction"
+	triprepository "github.com/Nikola4667636/template/internal/repository/trip"
 	"github.com/Nikola4667636/template/internal/server"
 	"github.com/Nikola4667636/template/internal/usecase/trip/create"
 	"github.com/Nikola4667636/template/internal/usecase/trip/finish"
@@ -29,13 +30,13 @@ type Container struct {
 }
 
 func NewContainer(ctx context.Context, cfg config.Config) (*Container, error) {
-	dbPool, err := database.NewPool(ctx, &cfg)
+	dbPool, err := postgres.NewPool(ctx, &cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
 	}
 
-	txManager := database.NewTxManager(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
-	tripRepo := repository.NewTripRepository(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
+	txManager := transaction.NewTxManager(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
+	tripRepo := triprepository.NewTripRepository(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
 	createTrip := create.New(tripRepo, txManager, time.Now)
 	getTrip := get.New(tripRepo)
 	finishTrip := finish.New(tripRepo, txManager, time.Now)

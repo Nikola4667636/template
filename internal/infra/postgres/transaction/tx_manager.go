@@ -1,4 +1,4 @@
-package database
+package transaction
 
 import (
 	"context"
@@ -6,17 +6,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type txKey struct{}
-
-type DBExecutor interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-}
 
 type TxManager struct {
 	pool         *pgxpool.Pool
@@ -70,11 +61,4 @@ func (tm *TxManager) Do(ctx context.Context, fn func(ctx context.Context) error)
 	}
 
 	return nil
-}
-
-func GetExecutor(ctx context.Context, pool *pgxpool.Pool) DBExecutor {
-	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
-		return tx
-	}
-	return pool
 }
