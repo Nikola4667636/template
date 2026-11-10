@@ -7,12 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-
 	"github.com/Nikola4667636/template/internal/config"
-	api "github.com/Nikola4667636/template/internal/generated"
-	"github.com/Nikola4667636/template/internal/handler"
 )
 
 type Server struct {
@@ -20,21 +15,11 @@ type Server struct {
 	cfg        *config.Config
 }
 
-func NewServer(cfg *config.Config, apiHandler *handler.APIHandler) *Server {
-	r := chi.NewRouter()
-
-	r.Use(middleware.RequestID)
-	r.Use(middleware.Recoverer)
-
-	api.HandlerWithOptions(apiHandler, api.ChiServerOptions{
-		BaseRouter:       r,
-		ErrorHandlerFunc: handler.InvalidRequest,
-	})
-
+func NewServer(cfg *config.Config, handler http.Handler) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:              cfg.HTTP_ADDR,
-			Handler:           r,
+			Handler:           handler,
 			ReadTimeout:       cfg.HTTP_READ_TIMEOUT,
 			ReadHeaderTimeout: cfg.HTTP_READ_HEADER_TIMEOUT,
 			WriteTimeout:      cfg.HTTP_WRITE_TIMEOUT,

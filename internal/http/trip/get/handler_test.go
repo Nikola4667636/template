@@ -1,9 +1,11 @@
-package handler_test
+package get_test
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -16,7 +18,7 @@ import (
 
 	domain "github.com/Nikola4667636/template/internal/domain/trip"
 	api "github.com/Nikola4667636/template/internal/generated"
-	"github.com/Nikola4667636/template/internal/handler"
+	"github.com/Nikola4667636/template/internal/http/trip/get"
 )
 
 const (
@@ -60,7 +62,6 @@ func TestGetTrip(t *testing.T) {
 		name       string
 		trip       *domain.Trip
 		err        error
-		invalidID  bool
 		wantStatus int
 		wantTrip   *api.Trip
 		wantCode   string
@@ -99,33 +100,20 @@ func TestGetTrip(t *testing.T) {
 			wantCode:   "internal_error",
 			wantDetail: "internal error",
 		},
-		{
-			name:       "invalid trip ID",
-			invalidID:  true,
-			wantStatus: http.StatusBadRequest,
-			wantCode:   "invalid_request",
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			getTrip := NewMockgetTripUseCase(ctrl)
-			pathID := id.String()
-			if tt.invalidID {
-				pathID = "not-a-uuid"
-			} else {
-				getTrip.EXPECT().Execute(gomock.Any(), id).Return(tt.trip, tt.err)
-			}
-			h := handler.NewAPIHandler(NewMockPinger(ctrl), NewMockcreateTripUseCase(ctrl), getTrip, NewMockfinishTripUseCase(ctrl), time.Second)
-			router := api.HandlerWithOptions(h, api.ChiServerOptions{
-				ErrorHandlerFunc: handler.InvalidRequest,
-			})
-			path := "/api/v1/trips/" + pathID
+			getTrip := NewMockuseCase(ctrl)
+			logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+			h := get.New(getTrip, logger)
+			path := "/api/v1/trips/" + id.String()
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			recorder := httptest.NewRecorder()
+			getTrip.EXPECT().Execute(req.Context(), id).Return(tt.trip, tt.err)
 
-			router.ServeHTTP(recorder, req)
+			h.Handle(recorder, req, id)
 
 			if recorder.Code != tt.wantStatus {
 				t.Fatalf("status = %d, want %d; body = %s", recorder.Code, tt.wantStatus, recorder.Body.String())

@@ -3,13 +3,19 @@ package container
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Nikola4667636/template/internal/config"
 	"github.com/Nikola4667636/template/internal/database"
-	"github.com/Nikola4667636/template/internal/handler"
+	transport "github.com/Nikola4667636/template/internal/http"
+	"github.com/Nikola4667636/template/internal/http/health"
+	"github.com/Nikola4667636/template/internal/http/ready"
+	createhandler "github.com/Nikola4667636/template/internal/http/trip/create"
+	finishhandler "github.com/Nikola4667636/template/internal/http/trip/finish"
+	gethandler "github.com/Nikola4667636/template/internal/http/trip/get"
 	"github.com/Nikola4667636/template/internal/repository"
 	"github.com/Nikola4667636/template/internal/server"
 	"github.com/Nikola4667636/template/internal/usecase/trip/create"
@@ -34,8 +40,14 @@ func NewContainer(ctx context.Context, cfg config.Config) (*Container, error) {
 	getTrip := get.New(tripRepo)
 	finishTrip := finish.New(tripRepo, txManager, time.Now)
 
-	apiHandler := handler.NewAPIHandler(dbPool, createTrip, getTrip, finishTrip, cfg.DATABASE_QUERY_TIMEOUT)
-	srv := server.NewServer(&cfg, apiHandler)
+	logger := slog.Default()
+	createHandler := createhandler.New(createTrip, logger)
+	getHandler := gethandler.New(getTrip, logger)
+	finishHandler := finishhandler.New(finishTrip, logger)
+	healthHandler := health.New()
+	readyHandler := ready.New(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
+	router := transport.NewRouter(createHandler, getHandler, finishHandler, healthHandler, readyHandler, logger)
+	srv := server.NewServer(&cfg, router)
 
 	return &Container{
 		pool:   dbPool,
