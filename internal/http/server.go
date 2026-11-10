@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 
 	"github.com/Nikola4667636/template/internal/config"
@@ -12,10 +13,10 @@ import (
 
 type Server struct {
 	httpServer *http.Server
-	cfg        *config.Config
+	logger     *slog.Logger
 }
 
-func NewServer(cfg *config.Config, handler http.Handler) *Server {
+func NewServer(cfg *config.Config, handler http.Handler, logger *slog.Logger) *Server {
 	return &Server{
 		httpServer: &http.Server{
 			Addr:              cfg.HTTP_ADDR,
@@ -25,44 +26,26 @@ func NewServer(cfg *config.Config, handler http.Handler) *Server {
 			WriteTimeout:      cfg.HTTP_WRITE_TIMEOUT,
 			IdleTimeout:       cfg.HTTP_IDLE_TIMEOUT,
 		},
-		cfg: cfg,
+		logger: logger,
 	}
 }
 
 func (s *Server) Run(ctx context.Context) error {
-	errCh := make(chan error, 1)
-
-	go func() {
-		slog.Info("starting http server", "addr", s.httpServer.Addr)
-
-		err := s.httpServer.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			errCh <- fmt.Errorf("http server listen error: %w", err)
-			return
-		}
-		errCh <- nil
-	}()
-
-	select {
-	case err := <-errCh:
-		return err
-	case <-ctx.Done():
+	// Request cancellation is controlled by net/http; the signal starts graceful draining.
+	s.httpServer.BaseContext = func(net.Listener) context.Context { return context.WithoutCancel(ctx) }
+	s.logger.InfoContext(ctx, "starting http server", "addr", s.httpServer.Addr)
+	if err := s.httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("http server listen error: %w", err)
 	}
+	return nil
+}
 
-	slog.Info("shutdown signal received, stopping http server", "timeout", s.cfg.SHUTDOWN_TIMEOUT.String())
-
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.cfg.SHUTDOWN_TIMEOUT)
-	defer cancel()
-
-	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
-		_ = s.httpServer.Close()
-		return fmt.Errorf("failed to shutdown http server gracefully: %w", err)
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.logger.InfoContext(ctx, "stopping http server")
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		closeErr := s.httpServer.Close()
+		return errors.Join(fmt.Errorf("failed to shutdown http server gracefully: %w", err), closeErr)
 	}
-
-	if err := <-errCh; err != nil {
-		return err
-	}
-
-	slog.Info("http server stopped gracefully")
+	s.logger.InfoContext(ctx, "http server stopped gracefully")
 	return nil
 }

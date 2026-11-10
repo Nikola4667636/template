@@ -11,10 +11,13 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
 	"go.uber.org/mock/gomock"
 
 	api "github.com/Nikola4667636/template/internal/generated"
 	transport "github.com/Nikola4667636/template/internal/http"
+	"github.com/Nikola4667636/template/internal/http/middleware"
 )
 
 type routeContextKey struct{}
@@ -52,7 +55,11 @@ func newRouter(t *testing.T) (http.Handler, *handlers) {
 		health: NewMockprobe(ctrl), ready: NewMockprobe(ctrl),
 	}
 	logger := slog.New(slog.NewJSONHandler(&h.logs, nil))
-	return transport.NewRouter(h.create, h.get, h.finish, h.health, h.ready, logger), h
+	metrics, err := middleware.NewHTTPMetrics(metricnoop.NewMeterProvider().Meter("test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return transport.NewRouter(h.create, h.get, h.finish, h.health, h.ready, logger, tracenoop.NewTracerProvider(), metrics), h
 }
 
 func TestRoutes(t *testing.T) {
@@ -200,7 +207,7 @@ func TestRecover(t *testing.T) {
 		t.Fatal(err)
 	}
 	details, ok := entry["error"].(string)
-	if !ok || !strings.Contains(details, panicDetail) || !strings.Contains(details, "goroutine") || entry["level"] != "ERROR" {
+	if !ok || !strings.Contains(details, panicDetail) || !strings.Contains(details, "goroutine") || entry["level"] != errorLogLevel {
 		t.Errorf("panic log lacks error details or stack trace: %+v", entry)
 	}
 	h.health.EXPECT().ServeHTTP(gomock.Any(), gomock.Any()).Do(func(w http.ResponseWriter, _ *http.Request) {

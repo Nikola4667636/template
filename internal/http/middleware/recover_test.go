@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -27,10 +28,11 @@ func TestRecover(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var logs bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logs, nil))
-			ctx := t.Context()
+			type contextKey struct{}
+			ctx := context.WithValue(t.Context(), contextKey{}, true)
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Context() != ctx {
-					t.Error("request context was replaced")
+				if r.Context().Value(contextKey{}) != true {
+					t.Error("request context values were lost")
 				}
 				if tt.panic {
 					panic(panicDetails)

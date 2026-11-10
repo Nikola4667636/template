@@ -7,6 +7,7 @@ import (
 
 	api "github.com/Nikola4667636/template/internal/generated"
 	"github.com/Nikola4667636/template/internal/http/domainerror"
+	"github.com/Nikola4667636/template/internal/http/requeststate"
 )
 
 func JSON(w http.ResponseWriter, status int, body any) {
@@ -24,7 +25,8 @@ func Problem(w http.ResponseWriter, r *http.Request, body api.Problem) {
 
 func Error(w http.ResponseWriter, r *http.Request, logger *slog.Logger, op string, err error) {
 	status, body := domainerror.Problem(err)
-	if status >= http.StatusInternalServerError {
+	managed := requeststate.RecordError(r.Context(), op, err)
+	if status >= http.StatusInternalServerError && !managed {
 		logger.ErrorContext(r.Context(), "request failed", "op", op, "error", err)
 	}
 	Problem(w, r, body)

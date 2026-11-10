@@ -5,7 +5,7 @@ TARGET_FILE=./cmd/trip-service
 API_PATH=./internal/generated/api.gen.go
 
 
-.PHONY: test test-integration run migrate lint generate clean env-start env-stop
+.PHONY: test test-integration run migrate lint generate env-start env-stop
 
 env-start:
 	tripgoctl environment start
@@ -18,7 +18,7 @@ test:
 	go tool cover -func=coverage.out
 
 test-integration:
-	go test -race -count=2 -tags=integration ./internal/repository/... ./internal/infra/postgres/...
+	go test -race -count=2 -tags=integration ./internal/repository/... ./internal/infra/...
 
 run:
 	go run "$(TARGET_FILE)"

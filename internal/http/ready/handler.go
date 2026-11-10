@@ -2,10 +2,13 @@ package ready
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
 	api "github.com/Nikola4667636/template/internal/generated"
+	"github.com/Nikola4667636/template/internal/http/requeststate"
 	"github.com/Nikola4667636/template/internal/http/response"
 )
 
@@ -21,7 +24,14 @@ func New(db pinger, timeout time.Duration) *Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-	if h.db == nil || h.db.Ping(ctx) != nil {
+	var err error
+	if h.db == nil {
+		err = errors.New("database is not configured")
+	} else {
+		err = h.db.Ping(ctx)
+	}
+	if err != nil {
+		requeststate.RecordError(r.Context(), "check database readiness", fmt.Errorf("ping database: %w", err))
 		response.JSON(w, http.StatusServiceUnavailable, api.HealthResponse{Status: api.Unavailable})
 		return
 	}

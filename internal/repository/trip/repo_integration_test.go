@@ -195,3 +195,24 @@ func TestFinishUseCasePersistsStateAndHistory(t *testing.T) {
 	}
 	assertTrip(t, persisted, next)
 }
+
+func TestRepositoryCountActive(t *testing.T) {
+	db := newTestDatabase(t)
+	assertCount := func(want int64) {
+		t.Helper()
+		got, err := db.repo.CountActive(t.Context())
+		if err != nil || got != want {
+			t.Fatalf("active trips = %d, %v; want %d", got, err, want)
+		}
+	}
+	assertCount(0)
+	first, second := newTrip(), newTrip()
+	db.saveTrip(t, first)
+	db.saveTrip(t, second)
+	assertCount(2)
+	uc := finish.New(db.repo, db.tx, func() time.Time { return first.StartedAt.Add(time.Hour) })
+	if _, err := uc.Execute(t.Context(), first.ID); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(1)
+}

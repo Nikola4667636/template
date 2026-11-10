@@ -14,7 +14,11 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("service failed", "error", err)
+		// Configuration may be unavailable, so fatal startup diagnostics use a bootstrap logger.
+		logger := slog.New(slog.NewJSONHandler(os.Stdout, nil)).With(
+			"service", "trip-service", "trace_id", "", "span_id", "",
+		)
+		logger.Error("service failed", "error", err)
 		os.Exit(1)
 	}
 }
@@ -25,8 +29,6 @@ func run() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	setupLogger(cfg.LOG_LEVEL)
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -34,21 +36,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("build application: %w", err)
 	}
-	defer app.Close()
-
 	if err := app.Run(ctx); err != nil {
 		return fmt.Errorf("run application: %w", err)
 	}
 
-	slog.Info("service stopped")
 	return nil
-}
-
-func setupLogger(levelName string) {
-	var level slog.Level
-	_ = level.UnmarshalText([]byte(levelName))
-
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})).
-		With("service", "trip-service")
-	slog.SetDefault(logger)
 }

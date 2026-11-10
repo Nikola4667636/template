@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Nikola4667636/template/internal/domain/trip"
 	api "github.com/Nikola4667636/template/internal/generated"
@@ -25,17 +25,17 @@ type adapter struct {
 
 var _ api.ServerInterface = (*adapter)(nil)
 
-func NewRouter(create tripCreator, get tripGetter, finish tripFinisher, health, ready probe, logger *slog.Logger) http.Handler {
+func NewRouter(create tripCreator, get tripGetter, finish tripFinisher, health, ready probe, logger *slog.Logger,
+	tracer trace.TracerProvider, metrics *middleware.HTTPMetrics,
+) http.Handler {
 	router := chi.NewRouter()
-	router.Use(middleware.Recover(logger))
-	router.Use(chimiddleware.RequestID)
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		response.Problem(w, r, domainerror.New(http.StatusNotFound, "not_found", "Not found", "route not found"))
 	})
 	router.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
 		response.Problem(w, r, domainerror.New(http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed", "method is not allowed for this route"))
 	})
-	return api.HandlerWithOptions(&adapter{create: create, get: get, finish: finish, health: health, ready: ready}, api.ChiServerOptions{
+	handler := api.HandlerWithOptions(&adapter{create: create, get: get, finish: finish, health: health, ready: ready}, api.ChiServerOptions{
 		BaseRouter: router,
 		ErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
 			invalid := &trip.ValidationError{Field: "request", Reason: "has invalid parameters"}
@@ -52,6 +52,9 @@ func NewRouter(create tripCreator, get tripGetter, finish tripFinisher, health, 
 			response.Error(w, r, logger, "parse request parameters", invalid)
 		},
 	})
+	return middleware.Recover(logger)(middleware.Tracing(tracer, router)(middleware.Logging(logger)(
+		metrics.Middleware(handler),
+	)))
 }
 
 func (a *adapter) CreateTrip(w http.ResponseWriter, r *http.Request, params api.CreateTripParams) {
