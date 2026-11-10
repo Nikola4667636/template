@@ -18,7 +18,6 @@ import (
 	"github.com/Nikola4667636/template/internal/infra/postgres"
 	"github.com/Nikola4667636/template/internal/infra/postgres/transaction"
 	triprepository "github.com/Nikola4667636/template/internal/repository/trip"
-	"github.com/Nikola4667636/template/internal/server"
 	"github.com/Nikola4667636/template/internal/usecase/trip/create"
 	"github.com/Nikola4667636/template/internal/usecase/trip/finish"
 	"github.com/Nikola4667636/template/internal/usecase/trip/get"
@@ -26,7 +25,7 @@ import (
 
 type Container struct {
 	pool   *pgxpool.Pool
-	server *server.Server
+	server *transport.Server
 }
 
 func NewContainer(ctx context.Context, cfg config.Config) (*Container, error) {
@@ -48,7 +47,7 @@ func NewContainer(ctx context.Context, cfg config.Config) (*Container, error) {
 	healthHandler := health.New()
 	readyHandler := ready.New(dbPool, cfg.DATABASE_QUERY_TIMEOUT)
 	router := transport.NewRouter(createHandler, getHandler, finishHandler, healthHandler, readyHandler, logger)
-	srv := server.NewServer(&cfg, router)
+	srv := transport.NewServer(&cfg, router)
 
 	return &Container{
 		pool:   dbPool,
